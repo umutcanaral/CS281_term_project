@@ -193,7 +193,7 @@ class project_ui:
         for i in range(0, len(list_pro)):
             temp = [sg.Text(list_pro[i][0], size=(15, 1)), sg.Text(list_pro[i][1], size=(15, 1)),
                     sg.Text(list_pro[i][2], size=(15, 1)), sg.Text(list_pro[i][3], size=(15, 1)),
-                    sg.Button("Add Product", key=list_pro[i][4])]
+                    sg.Button("Add Product", key=(('Add',list_pro[i][4]))),sg.Button("Evaluations of Product", key=(('Yorum',list_pro[i][4])))]
             cur.execute('SELECT stock_count FROM products_supplies WHERE product_id= ? ', (list_pro[i][4],))
             self.layout.append(temp)
 
@@ -389,7 +389,20 @@ class project_ui:
                        [sg.Button('Evaluate'), sg.Button('Back')]]
 
         return sg.Window('Product Evaluation', self.layout)
-
+    
+    def print_ev(self,product_ev):
+        self.layout = []
+        self.layout.append([sg.Text("Star", size=(3, 1)), sg.Text("Comment", size=(15, 1))])
+        if product_ev==[]:
+            self.layout.append([sg.Text("No Past Evaluations!", size=(15, 1))])
+        else:
+            for el in product_ev: 
+                self.layout = [[sg.Text("Stars: "+el[0])],
+                               [sg.Text("Comment:" + el[1])]]
+        back_but = [sg.Button('Back to Product List')]
+        self.layout.append(back_but)
+        return sg.Window('Product Comments', self.layout)
+                           
 Xyz = project_ui()
 Xyz.window = Xyz.window_welcome()
 cart_list = []
@@ -400,7 +413,8 @@ while True:
     print(values)
     print(shop_active)
     
-    if shop_active == 1 and event != 'Back':
+    if shop_active == 1 and event != 'Back' and event !='Back to Product List':
+        
         if event == 'Payment Stage':
             shop_active = 0
             payment_method = cur.execute('SELECT default_payment_method FROM customer WHERE customer_id = ?',
@@ -414,19 +428,35 @@ while True:
             Xyz.window = Xyz.window_pay(cart_list, adres, payment_method)
 
         elif event != 'Payment Stage':
-            product_id = event
-            cur.execute('SELECT stock_count FROM products_supplies WHERE product_id= ? ', (product_id,))
-            stock_count = cur.fetchone()
-            if stock_count[0] == 0:
-                sg.popup('No stock!')
-            else:
-                stock_count = stock_count[0] - 1
-                print(stock_count)
-                cur.execute('UPDATE products_supplies SET stock_count= ? WHERE product_id= ? ',
+            event=[event]
+            d=dict(event)
+            key_event=list(d.keys())[0]
+            if key_event=='Add':
+                product_id = d['Add']
+                cur.execute('SELECT stock_count FROM products_supplies WHERE product_id= ? ', (product_id,))
+                stock_count = cur.fetchone()
+                if stock_count[0] == 0:
+                    sg.popup('No stock!')
+                else:
+                    stock_count = stock_count[0] - 1
+                    print(stock_count)
+                    cur.execute('UPDATE products_supplies SET stock_count= ? WHERE product_id= ? ',
                             (stock_count, product_id))
-                cart_list.append(event)
-                con.commit()
+                    cart_list.append(d['Add'])
+                    con.commit()
+            elif key_event=='Yorum':
+                product_id = d['Yorum']
+                Xyz.window.close()
+                product_ev=[]
+                for row in cur.execute('SELECT prod_star,prod_comment FROM evaluate_product WHERE product_id= ? ',(product_id,)):
+                     product_ev.append(row)
+                Xyz.window= Xyz.print_ev (product_ev)
+                                 
                 
+    if event=='Back to Product List':
+        Xyz.window.close()
+        Xyz.window = Xyz.window_list_products()
+        
     if event=='Back to Main':
         Xyz.window.close()
         Xyz.window = Xyz.window_welcome()
@@ -586,7 +616,6 @@ while True:
 
         Xyz.window.close()
         Xyz.window = Xyz.window_cust()
-
 
 
     elif event == sg.WIN_CLOSED:
