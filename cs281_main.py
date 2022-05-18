@@ -2,6 +2,7 @@ import sqlite3
 import PySimpleGUI as sg
 from datetime import timedelta, date
 import random
+import re
 
 # DB Connect
 
@@ -33,7 +34,7 @@ class project_ui:
         self.layout = [[sg.Text('Please enter your information to login your account')],
                        [sg.Text('User_name:', size=(10, 1)), sg.Input(size=(10, 1), key='user_name')],
                        [sg.Text('Password:', size=(10, 1)), sg.Input(size=(10, 1), key='password')],
-                       [sg.Button('Login'), sg.Button('Back')]]
+                       [sg.Button('Login'), sg.Button('Back to Main')]]
         return sg.Window('Login Window', self.layout)
 
     def window_sup(self):
@@ -73,6 +74,7 @@ class project_ui:
         return sg.Window('Enrol Window', self.layout)
 
     def insert_supplier(self, values):
+        regex = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
         user_list = []
         u_name = values['user_name']
         p_name = values['name']
@@ -93,8 +95,8 @@ class project_ui:
         else:
             if u_name == '' or p_name == '' or p_surname == '' or password == '' or phone_number == '' or e_mail == '':
                 sg.popup('All areas must be filled!')
-            elif "@" not in e_mail:
-                sg.popup('Incorrect Email!')
+            elif not (re.fullmatch(regex, e_mail)):
+                sg.popup('Invalid Email')       
             elif len(phone_number) != 10:
                 sg.popup('Wrong Tel no!')
             else:
@@ -380,6 +382,13 @@ class project_ui:
 
         return sg.Window('Shipment Evaluation', self.layout)
 
+    def evaluate_product(self):
+        list_of_points = [1,2,3,4,5]
+        self.layout = [[sg.Text("Comments:  "), sg.Input(key='com', size=(20, 2))],
+                       [sg.Text("Points(1-5):  "), sg.Listbox(list_of_points, size=(20, 5), key='points')],
+                       [sg.Button('Evaluate'), sg.Button('Back')]]
+
+        return sg.Window('Product Evaluation', self.layout)
 
 Xyz = project_ui()
 Xyz.window = Xyz.window_welcome()
@@ -390,6 +399,7 @@ while True:
     print(event)
     print(values)
     print(shop_active)
+    
     if shop_active == 1 and event != 'Back':
         if event == 'Payment Stage':
             shop_active = 0
@@ -416,7 +426,10 @@ while True:
                             (stock_count, product_id))
                 cart_list.append(event)
                 con.commit()
-
+                
+    if event=='Back to Main':
+        Xyz.window.close()
+        Xyz.window = Xyz.window_welcome()
     if event == 'Update Address':
         Xyz.window.close()
         Xyz.window = Xyz.window_address()
@@ -538,6 +551,11 @@ while True:
         Xyz.order_id = values.get("order_id")[0].get("Order_id")
         Xyz.window.close()
         Xyz.window = Xyz.evaluate_shipment()
+    if event=='Evaluate Product':
+        Xyz.product_id = values['product'][0][1]
+        Xyz.window.close()
+        Xyz.window = Xyz.evaluate_product()
+        
 
 
     if event == 'Approve':
@@ -548,10 +566,27 @@ while True:
             cur.execute("INSERT INTO evaluate_delivery VALUES (?,?,?,?)", (values.get("points")[0], values.get("com"), Xyz.cust_id, Xyz.order_id))
             con.commit()
         except:
+            sg.popup('Already Evaluated!')
+            con.rollback()
+           
+
+        Xyz.window.close()
+        Xyz.window = Xyz.window_cust()
+        
+    if event == 'Evaluate':
+        print("Values----", values)
+        cur.execute("SELECT sup_id FROM products_supplies WHERE product_id=?",(Xyz.product_id,))
+        sup_id=cur.fetchone()[0]
+        try:
+            cur.execute("INSERT INTO evaluate_product VALUES (?,?,?,?,?)", (Xyz.product_id,Xyz.cust_id,sup_id,values.get("points")[0],values.get("com")))
+            con.commit()
+        except:
+            sg.popup('Already Evaluated')
             con.rollback()
 
         Xyz.window.close()
         Xyz.window = Xyz.window_cust()
+
 
 
     elif event == sg.WIN_CLOSED:
